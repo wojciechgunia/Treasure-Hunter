@@ -1,0 +1,12 @@
+fastapi==0.116.1
+uvicorn==0.35.0
+sqlalchemy==2.0.43
+psycopg2-binary==2.9.10
+alembic==1.16.5
+paho-mqtt==2.1.0
+python-dotenv==1.1.1
+python-jose==3.5.0
+passlib==1.7.4
+typer==0.17.3
+bcrypt==4.3.0
+python-multipart==0.0.20

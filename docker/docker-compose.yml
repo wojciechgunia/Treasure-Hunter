@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: boat_app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - mqtt
+    environment:
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: boatdb
+      DB_HOST_CONTAINER: db
+      DB_PORT: 5432
+      MQTT_BROKER: mqtt
+      MQTT_PORT: 1883
+    volumes:
+      - ../app:/code/app
+      - ../alembic:/code/alembic
+      - ../requirements.txt:/code/requirements.txt
+      - ../.env:/code/.env
+      - ../alembic.ini:/code/alembic.ini
+
+  db:
+    image: postgres:14
+    container_name: boat_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: boatdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: boat_mqtt
+    ports:
+      - "1883:1883"
+
+volumes:
+  pgdata:
