@@ -36,7 +36,8 @@ def mission_data(mission_id: int,
     return mission
 
 @router.get("/")
-def list_missions(db: Session = Depends(database.get_db)):
+def list_missions(db: Session = Depends(database.get_db),
+                  current_user: models.User = Depends(get_current_user),):
     missions = db.query(models.Mission).all()
     return [{"id": m.id, "name": m.name} for m in missions]
 

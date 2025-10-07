@@ -62,8 +62,6 @@ def update_poi(poi_id: int,
         poi.name = request.name
     if request.description is not None:
         poi.description = request.description
-    if request.pictures is not None:
-        poi.pictures = request.pictures
 
     db.commit()
     db.refresh(poi)

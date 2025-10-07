@@ -12,7 +12,6 @@ class POICreateRequest(BaseModel):
 class POIUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    pictures: str | None = None
 
 class POIResponse(BaseModel):
     id: int

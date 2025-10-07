@@ -1,5 +1,5 @@
 import typer
-from app import database, entity
+from app import database, models
 from app.services.authService import get_password_hash
 
 app = typer.Typer()
@@ -8,7 +8,7 @@ app = typer.Typer()
 @app.command()
 def create_user(login: str, password: str, role: str = "user"):
     db = database.SessionLocal()
-    user = entity.User(
+    user = models.User(
         login=login,
         password=get_password_hash(password),
         role=role,
