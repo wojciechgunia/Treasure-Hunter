@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 import os
-import aioredis
+import redis.asyncio as aioredis
 
 router = APIRouter(prefix="/boats", tags=["Boats"])
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")

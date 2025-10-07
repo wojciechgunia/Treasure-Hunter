@@ -2,6 +2,7 @@ import asyncio
 import json
 import redis.asyncio as aioredis
 import paho.mqtt.client as mqtt
+import threading
 from datetime import datetime
 
 # 🔧 Konfiguracja
@@ -11,14 +12,13 @@ MQTT_BROKER = "mqtt"
 MQTT_PORT = 1883
 TOPIC_PREFIX = "boat"
 
-# Struktura przechowująca informacje o połączeniach
-# statek -> {phones: set(), captain: str, mission: id, mode: str}
+# Globalne obiekty
 boats_state = {}
-
-# Redis klient
+loop = asyncio.get_event_loop()
 redis_client = None
 
 
+# --- Redis setup ---
 async def init_redis():
     global redis_client
     redis_client = aioredis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
@@ -29,7 +29,7 @@ async def init_redis():
         print("❌ Redis connection error:", e)
 
 
-# MQTT callbacki
+# --- MQTT callbacki ---
 def on_connect(client, userdata, flags, rc, properties=None):
     print(f"✅ MQTT Connected with result code {rc}")
     client.subscribe(f"{TOPIC_PREFIX}/+/status")
@@ -42,7 +42,11 @@ def on_connect(client, userdata, flags, rc, properties=None):
 
 
 def on_message(client, userdata, msg):
-    asyncio.run(handle_mqtt_message(msg.topic, msg.payload))
+    # Wrzuć zadanie do głównego event loopa
+    asyncio.run_coroutine_threadsafe(
+        handle_mqtt_message(msg.topic, msg.payload),
+        loop
+    )
 
 
 async def handle_mqtt_message(topic, payload):
@@ -50,9 +54,9 @@ async def handle_mqtt_message(topic, payload):
         parts = topic.split("/")
         if len(parts) < 3:
             return
+
         boat_id = parts[1]
         event_type = parts[2]
-
         data = json.loads(payload.decode())
 
         if event_type == "connect":
@@ -69,6 +73,7 @@ async def handle_mqtt_message(topic, payload):
         print("⚠️ Error in handle_mqtt_message:", e)
 
 
+# --- Handlery danych ---
 async def handle_connect(boat_id, data):
     username = data.get("username")
     if not username:
@@ -79,9 +84,7 @@ async def handle_connect(boat_id, data):
     phones = set(json.loads(current.get("phones", "[]")))
 
     phones.add(username)
-    captain = current.get("captain")
-    if not captain:
-        captain = username
+    captain = current.get("captain") or username
 
     await redis_client.hset(boat_key, mapping={
         "phones": json.dumps(list(phones)),
@@ -105,7 +108,6 @@ async def handle_disconnect(boat_id, data):
 
     captain = current.get("captain")
     if captain == username:
-        # Wybierz nowego kapitana losowo
         captain = next(iter(phones), "")
 
     await redis_client.hset(boat_key, mapping={
@@ -128,8 +130,17 @@ async def handle_command(boat_id, data):
 
 
 async def handle_data(boat_id, data_type, data):
-    # dane telemetryczne / kamera / sonar
     await redis_client.publish(f"{TOPIC_PREFIX}/{boat_id}/{data_type}/update", json.dumps(data))
+
+
+# --- MQTT w osobnym wątku ---
+def mqtt_thread():
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.loop_forever()  # działa w tle i nasłuchuje
+
 
 async def wait_for_mqtt():
     import time
@@ -140,22 +151,19 @@ async def wait_for_mqtt():
             client.disconnect()
             print("✅ MQTT is available")
             return
-        except Exception as e:
+        except Exception:
             print(f"⏳ Waiting for MQTT... ({i+1}/10)")
             time.sleep(3)
     raise RuntimeError("❌ MQTT broker not reachable")
 
 
+# --- Główna funkcja ---
 async def main():
     await init_redis()
-
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.on_connect = on_connect
-    client.on_message = on_message
-
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
     await wait_for_mqtt()
-    client.loop_start()
+
+    # Uruchom MQTT w osobnym wątku
+    threading.Thread(target=mqtt_thread, daemon=True).start()
 
     print("🚀 MQTT Presence Worker running...")
     while True:
@@ -163,4 +171,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop.run_until_complete(main())
