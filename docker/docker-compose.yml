@@ -41,6 +41,35 @@ services:
     container_name: boat_mqtt
     ports:
       - "1883:1883"
+      - "9001:9001"
+
+  redis:
+    image: redis:7
+    container_name: boat_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  mqtt-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mqtt_worker
+    command: [ "python", "app/mqttPresenceWorker.py" ]
+    environment:
+      MQTT_BROKER: mqtt
+      MQTT_PORT: 1883
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mqtt
+      - redis
+      - db
+    volumes:
+      - ../app:/code/app
+      - ../.env:/code/.env
 
 volumes:
   pgdata:
+  redisdata:
