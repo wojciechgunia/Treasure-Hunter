@@ -27,3 +27,11 @@ async def list_active_boats(redis = Depends(get_redis)):
             "mission": mission
         })
     return out
+
+@router.get("/{boat_id}/telemetry")
+async def get_boat_telemetry(boat_id: str, redis=Depends(get_redis)):
+    key = f"boat:{boat_id}:telemetry"
+    data = await redis.hgetall(key)
+    if not data:
+        return {"error": "No telemetry found for this boat"}
+    return data

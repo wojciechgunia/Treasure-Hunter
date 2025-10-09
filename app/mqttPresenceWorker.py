@@ -10,7 +10,7 @@ REDIS_HOST = "redis"
 REDIS_PORT = 6379
 MQTT_BROKER = "mqtt"
 MQTT_PORT = 1883
-TOPIC_PREFIX = "boat"
+TOPIC_PREFIX = "boats"
 
 # Globalne obiekty
 boats_state = {}
@@ -48,7 +48,6 @@ def on_message(client, userdata, msg):
         loop
     )
 
-
 async def handle_mqtt_message(topic, payload):
     try:
         parts = topic.split("/")
@@ -65,9 +64,11 @@ async def handle_mqtt_message(topic, payload):
             await handle_disconnect(boat_id, data)
         elif event_type == "status":
             await handle_status(boat_id, data)
+        elif event_type == "telemetry":
+            await handle_telemetry(boat_id, data)
         elif event_type == "command":
             await handle_command(boat_id, data)
-        elif event_type in ["telemetry", "camera", "sonar"]:
+        elif event_type in ["camera", "sonar"]:
             await handle_data(boat_id, event_type, data)
     except Exception as e:
         print("⚠️ Error in handle_mqtt_message:", e)
@@ -117,13 +118,42 @@ async def handle_disconnect(boat_id, data):
     })
     print(f"❌ {username} disconnected from boat {boat_id}")
 
+# Zaczęło działać, sprawdzone
+async def handle_status(boat_id: str, data: dict):
+    # Jeżeli data przyszła jako tekst JSON, zdekoduj
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            data = {"status": data}
 
-async def handle_status(boat_id, data):
+    status = data.get("status", "unknown")
+
+    # Zapisz status i timestamp
     await redis_client.hset(f"boat:{boat_id}", mapping={
-        "status": json.dumps(data),
+        "status": status,
         "updatedAt": datetime.utcnow().isoformat()
     })
 
+    if status == "online":
+        await redis_client.sadd("boat:registry", boat_id)
+        await redis_client.set(f"boat:{boat_id}:name", data.get("name", f"Boat {boat_id}"))
+        await redis_client.expire(f"boat:{boat_id}:name", 3600)
+
+    elif status == "idle":
+        await redis_client.srem("boat:registry", boat_id)
+        await redis_client.delete(f"boat:{boat_id}:clients")
+        await redis_client.delete(f"boat:{boat_id}:captain")
+        await redis_client.delete(f"boat:{boat_id}:name")
+
+async def handle_telemetry(boat_id, data):
+    key = f"boat:{boat_id}:telemetry"
+
+    data["updatedAt"] = datetime.utcnow().isoformat()
+    await redis_client.hset(key, mapping=data)
+    await redis_client.expire(key, 3600)
+
+    print(f"✅ Zapisano telemetry w Redis: {key} -> {data}")
 
 async def handle_command(boat_id, data):
     print(f"🧭 Command received for boat {boat_id}: {data}")
