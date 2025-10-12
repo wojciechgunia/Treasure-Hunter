@@ -10,11 +10,10 @@ async def get_redis():
     return await aioredis.from_url(REDIS_URL, decode_responses=True)
 
 @router.get("/active")
-async def list_active_boats(redis = Depends(get_redis)):
+async def list_active_boats(redis=Depends(get_redis)):
     boat_ids = await redis.smembers(BOAT_REGISTRY_KEY)
     out = []
-    for b in boat_ids:
-        bid = b
+    for bid in boat_ids:
         count = await redis.scard(f"boat:{bid}:clients")
         captain = await redis.get(f"boat:{bid}:captain") or ""
         mission = await redis.get(f"boat:{bid}:mission") or ""
@@ -35,3 +34,9 @@ async def get_boat_telemetry(boat_id: str, redis=Depends(get_redis)):
     if not data:
         return {"error": "No telemetry found for this boat"}
     return data
+
+@router.get("/{boat_id}/clients")
+async def get_boat_clients(boat_id: str, redis=Depends(get_redis)):
+    clients = await redis.smembers(f"boat:{boat_id}:clients")
+    captain = await redis.get(f"boat:{boat_id}:captain") or ""
+    return {"captain": captain, "clients": list(clients)}

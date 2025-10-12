@@ -58,7 +58,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: mqtt_worker
-    command: [ "python", "app/mqttPresenceWorker.py" ]
+    command: [ "python", "app/mqttWorker.py" ]
     environment:
       MQTT_BROKER: mqtt
       MQTT_PORT: 1883
