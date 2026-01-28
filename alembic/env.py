@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.database import Base
-from app import entity
+from app import models
 
 config = context.config
 fileConfig(config.config_file_name)

@@ -12,9 +12,9 @@ router = APIRouter(prefix="/auth", tags=["user"])
 def login(request: LoginRequest, db: Session = Depends(database.get_db)):
     user = authenticate_user(db, request.username, request.password)
     if not user:
-        raise HTTPException(status_code=400, detail="Błędny login lub hasło")
+        raise HTTPException(status_code=400, detail="Your login credentials are invalid. Please try again.")
     if user.isBlocked:
-        raise HTTPException(status_code=400, detail="Użytkownik jest zablokowany")
+        raise HTTPException(status_code=400, detail="This user is blocked! You can't use this account.")
     access_token = create_access_token(data={"sub": user.login})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -43,4 +43,4 @@ def change_password(
     hashed = get_password_hash(new_password)
     current_user.password = hashed
     db.commit()
-    return {"msg": "Hasło zmienione"}
+    return {"msg": "Your password successfully changed!"}
